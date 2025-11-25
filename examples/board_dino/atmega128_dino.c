@@ -391,8 +391,8 @@ int main() {
 	rnd_init();
 
 	// "Splash screen"
-	lcd_send_line1("    MiniTris");
-	lcd_send_line2("    by Akiss");
+	lcd_send_line1("    NoNetDino");
+	lcd_send_line2("    by Dave");
 
 	// loop of the whole program, always restarts game
 	while (1) {
