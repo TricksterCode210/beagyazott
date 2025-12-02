@@ -264,8 +264,8 @@ static unsigned char current_pattern[PATTERN_SIZE];
 static int current_row;
 static int current_col;
 
-static int dino_row = 2;
-static int dino_col = 3;
+static int dino_col_position = 2;
+static int dino_col_position_position = 3;
 static int dino_jump = 0;
 static int air_time = 10;
 
@@ -280,17 +280,17 @@ static void playfield_clear() {
 	playfield[PLAYFIELD_ROWS] = 0b111111;
 }
 
-int dino_collision() {
-    int dino_bit = 1 << (dino_col + 1);
+int dino_col_position_positionlision() {
+    int dino_bit = 1 << (dino_col_position_position + 1);
 
     // check upper row
-    if (dino_row == current_row) {
+    if (dino_col_position == current_row) {
         int obstacle = current_pattern[0] << (current_col + 1);
         if (dino_bit & obstacle) return 1;
     }
 
     // check lower row
-    if (dino_row == current_row + 1) {
+    if (dino_col_position == current_row + 1) {
         int obstacle = current_pattern[1] << (current_col + 1);
         if (dino_bit & obstacle) return 1;
     }
@@ -358,8 +358,8 @@ static void screen_update() {
 	for (int r1 = 0; r1 < PLAYFIELD_ROWS; ++r1) {
 		unsigned char row = XLAT_PLAYGROUND[(playfield[r1] >> 1) & 0b11];
 
-    	if (r1 == dino_row) {
-        	row |= XLAT_PATTERN[(1 << dino_col) & 0b11];
+    	if (r1 == dino_col_position) {
+        	row |= XLAT_PATTERN[(1 << dino_col_position_position) & 0b11];
     	}
 
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
@@ -373,8 +373,8 @@ static void screen_update() {
 	for (int r2 = 0; r2 < PLAYFIELD_ROWS; ++r2) {
 		char row = XLAT_PLAYGROUND[(playfield[r2] >> 3) & 0b11];
 
-		if (r2 == dino_row) {
-        	row |= XLAT_PATTERN[((1 << dino_col) >> 2) & 0b11];
+		if (r2 == dino_col_position) {
+        	row |= XLAT_PATTERN[((1 << dino_col_position_position) >> 2) & 0b11];
     	}
 
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
@@ -426,7 +426,7 @@ int main() {
 			}
 
 			// game over, if the blockade collide with the dino
-			if (dino_collision())
+			if (dino_col_position_positionlision())
 				break;
 
 			if (++delay_cycle > LEVELS[level_current].delay) {
@@ -447,23 +447,23 @@ int main() {
        			dino_jump = 1;
 			}
 			if(button == BUTTON_UP) {
-				dino_col = 3;
+				dino_col_position_position = 3;
 				dino_jump = 0;
 				air_time = 10;
 			}
 
 			if(dino_jump == 1) {            // if jump
-    			if(dino_col > 0)
-        			dino_col--;             // 1 block up
-				else if(dino_col == 0 && air_time > 0) {
+    			if(dino_col_position_position > 0)
+        			dino_col_position_position--;             // 1 block up
+				else if(dino_col_position_position == 0 && air_time > 0) {
 					air_time--;				// stays in the air for a short period
 				}
     			else
         			dino_jump = -1;         // reached top and air time ran out
 			}
 			else if(dino_jump == -1) {      // falling
-    			if(dino_col < 3)
-        			dino_col++;             // 1 block down
+    			if(dino_col_position_position < 3)
+        			dino_col_position_position++;             // 1 block down
     		else
         		dino_jump = 0;          // reached the floor, reset values
 				air_time = 10;
