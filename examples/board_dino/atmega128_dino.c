@@ -278,12 +278,22 @@ static void playfield_clear() {
 	playfield[PLAYFIELD_ROWS] = 0b111111;
 }
 
+int dino_collision() {
+    int dino_bit = 1 << (dino_col + 1);
 
-static int collision(char *pattern, int row, int col) {
-	int result = 0;
-	for (int r = 0; r < PATTERN_SIZE; ++r)
-		result |= playfield[row + r] & (pattern[r] << (col + 1));
-	return !!result;
+    // check upper row
+    if (dino_row == current_row) {
+        int obstacle = current_pattern[0] << (current_col + 1);
+        if (dino_bit & obstacle) return 1;
+    }
+
+    // check lower row
+    if (dino_row == current_row + 1) {
+        int obstacle = current_pattern[1] << (current_col + 1);
+        if (dino_bit & obstacle) return 1;
+    }
+
+    return 0;
 }
 
 // GRAPHICS ------------------------------------------------------------------
@@ -412,6 +422,10 @@ int main() {
 				// show the new piece on the screen
 				screen_update();
 			}
+
+			// game over, if the blockade collide with the dino
+			if (dino_collision())
+				break;
 
 			if (++delay_cycle > LEVELS[level_current].delay) {
 				delay_cycle = 0;
