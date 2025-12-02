@@ -82,13 +82,13 @@ static int button_pressed() {
 	}
 
 	// up
-	if (!(PINA & 0b00010000) & button_accept) { // check state of button 2 and value of button_accept
+	if (!(PINA & 0b00000001) & button_accept) { // check state of button 2 and value of button_accept
 		button_accept = 0; // button is pressed
 		return BUTTON_UP;
 	}
 
 	// down
-	if (!(PINA & 0b00000001) & button_accept) { // check state of button 2 and value of button_accept
+	if (!(PINA & 0b00010000) & button_accept) { // check state of button 2 and value of button_accept
 		button_accept = 0; // button is pressed
 		return BUTTON_DOWN;
 	}
@@ -235,8 +235,8 @@ typedef struct {
 	int rows;
 } level_t;
 
-#define LEVEL_NUM 6
-static level_t LEVELS[] = { { 5, 5 }, { 4, 10 }, { 3, 15 }, { 2, 20 }, { 1, 30 }, { 0, 0 } };
+#define LEVEL_NUM 3
+static level_t LEVELS[] = { { 5, 5 }, { 3, 10 }, { 1, 30 } };
 static int level_current = 0;
 static int delay_cycle;
 
@@ -261,8 +261,8 @@ static void row_removed() {
 static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01, 0b00 }, { 0b01, 0b01 }};
 
 static unsigned char current_pattern[PATTERN_SIZE];
-static int current_row;
-static int current_col;
+static int current_col_position;
+static int current_row_position;
 
 static int dino_col_position = 2;
 static int dino_row_position = 3;
@@ -284,14 +284,14 @@ int dino_row_positionlision() {
     int dino_bit = 1 << (dino_row_position + 1);
 
     // check upper row
-    if (dino_col_position == current_row) {
-        int obstacle = current_pattern[0] << (current_col + 1);
+    if (dino_col_position == current_col_position) {
+        int obstacle = current_pattern[0] << (current_row_position + 1);
         if (dino_bit & obstacle) return 1;
     }
 
     // check lower row
-    if (dino_col_position == current_row + 1) {
-        int obstacle = current_pattern[1] << (current_col + 1);
+    if (dino_col_position == current_col_position + 1) {
+        int obstacle = current_pattern[1] << (current_row_position + 1);
         if (dino_bit & obstacle) return 1;
     }
 
@@ -363,8 +363,8 @@ static void screen_update() {
     	}
 
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
-			if (r1 == current_row + pr)
-				row |= XLAT_PATTERN[(current_pattern[pr] << current_col) & 0b11];
+			if (r1 == current_col_position + pr)
+				row |= XLAT_PATTERN[(current_pattern[pr] << current_row_position) & 0b11];
 		lcd_send_data(XLAT_CHAR[row]);
 	}
 
@@ -378,8 +378,8 @@ static void screen_update() {
     	}
 
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
-			if (r2 == current_row + pr)
-				row |= XLAT_PATTERN[((current_pattern[pr] << current_col) >> 2) & 0b11];
+			if (r2 == current_col_position + pr)
+				row |= XLAT_PATTERN[((current_pattern[pr] << current_row_position) >> 2) & 0b11];
 		lcd_send_data(XLAT_CHAR[row]);
 	}
 }
@@ -403,6 +403,27 @@ int main() {
 		while (button_pressed() != BUTTON_CENTER) // wait till start signal
 			button_unlock(); // keep on clearing button_accept
 
+
+
+		lcd_send_line1("  Difficulity");
+		lcd_send_line2("E-4   N-5   H-6");
+		while (1) { // végtelen ciklus, amiből kilépünk gombnyomásra
+    	int btn = button_pressed();
+    		if(btn == BUTTON_LEFT) {
+        		level_current = 0;
+        		break; // kilép a kiválasztásból
+    		}
+    		if(btn == BUTTON_CENTER) {
+        		level_current = 1;
+        		break;
+    		}
+    		if(btn == BUTTON_RIGHT) {
+        		level_current = 2;
+        		break;
+    		}
+    		button_unlock();
+		}
+
 		playfield_clear(); // set up new playfield
 		delay_cycle = 0; // start the timer
 		new_pattern = 1; // start with new pattern
@@ -418,8 +439,8 @@ int main() {
 					current_pattern[i] = PATTERNS[p][i];
 
 				// place it randomly at the top of the playfield
-				current_row = 15;
-				current_col = rnd_gen(PLAYFIELD_COLS);
+				current_col_position = 15;
+				current_row_position = rnd_gen(PLAYFIELD_COLS);
 
 				// show the new piece on the screen
 				screen_update();
@@ -432,24 +453,22 @@ int main() {
 			if (++delay_cycle > LEVELS[level_current].delay) {
 				delay_cycle = 0;
 				// if reach the last point, we are going to make a new pattern
-				if (current_row == 0) {
+				if (current_col_position == 0) {
 					new_pattern = 1;
 					continue;
 				}
 				// otherwise, drop the piece by one row
-				--current_row;
+				--current_col_position;
 			}
 
 			//TODO game logic
 			int button = button_pressed();
 			int horizontal = 0;
-			if(button == BUTTON_DOWN && dino_jump == 0) {
+			if(button == BUTTON_UP && dino_jump == 0) {
        			dino_jump = 1;
 			}
-			if(button == BUTTON_UP) {
-				dino_row_position = 3;
-				dino_jump = 0;
-				air_time = 10;
+			if(button == BUTTON_DOWN) {
+				dino_jump = -1;
 			}
 
 			if(dino_jump == 1) {            // if jump
@@ -479,7 +498,7 @@ int main() {
 		// playing some funeral tunes and displaying a game over screen
 		play_tune(TUNE_GAMEOVER);
 		lcd_send_line1("    GAME OVER   ");
-		lcd_send_line2("Click to restart");
+		lcd_send_line2("   5 - restart");
 
 	} // end of program-loop, we never quit
 }
