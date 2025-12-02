@@ -1,6 +1,6 @@
 /**
- * MiniTris -- Mini Tetris game
- * by Akos Kiss
+ * No Net Dino Game
+ * by David Dinnyes
  */
 
 #undef F_CPU
@@ -249,9 +249,9 @@ static void row_removed() {
 /* Vertical axis: 0 is top row, increments downwards
  * Horizontal axis: 0 is right column, increments leftwards */
 
-#define PATTERN_NUM		4
+#define PATTERN_NUM		2
 #define PATTERN_SIZE	2
-static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01, 0b00 }, { 0b01, 0b01 }, { 0b01, 0b11 }, { 0b11, 0b11 } };
+static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01, 0b00 }, { 0b01, 0b01 }};
 
 static unsigned char current_pattern[PATTERN_SIZE];
 static int current_row;
@@ -268,42 +268,12 @@ static void playfield_clear() {
 	playfield[PLAYFIELD_ROWS] = 0b111111;
 }
 
-static void merge_current_pattern_to_playfield() {
-	// merge current piece to playfield
-	for (int p = 0; p < PATTERN_SIZE; ++p)
-		playfield[current_row + p] |= current_pattern[p] << (current_col + 1);
-	// remove full lines and drop lines above
-	for (int r = 0; r < PLAYFIELD_ROWS; ++r) {
-		if (playfield[r] == 0b111111) {
-			for (int rr = r; rr > 0; --rr)
-				playfield[rr] = playfield[rr - 1];
-			playfield[0] = 0b100001;
-			row_removed(); // let's see whether we should increase the speed
-		}
-	}
-}
 
 static int collision(char *pattern, int row, int col) {
 	int result = 0;
 	for (int r = 0; r < PATTERN_SIZE; ++r)
 		result |= playfield[row + r] & (pattern[r] << (col + 1));
 	return !!result;
-}
-
-static void rotate_pattern(char *src_pattern, char *dst_pattern) {
-	// rotate the piece
-	dst_pattern[0] = (src_pattern[0] >> 1) | ((src_pattern[1] >> 1) << 1);
-	dst_pattern[1] = (src_pattern[0] & 0x01) | ((src_pattern[1] & 0x01) << 1);
-	// if the topmost row of the rotated piece is empty, shift the pattern upwards
-	if (dst_pattern[0] == 0) {
-		dst_pattern[0] = dst_pattern[1];
-		dst_pattern[1] = 0;
-	}
-	// if the rightmost column of the rotated piece is empty, shift the pattern to the right
-	if (((dst_pattern[0] & 0b01) == 0) && ((dst_pattern[1] & 0b01) == 0)) {
-		dst_pattern[0] >>= 1;
-		dst_pattern[1] >>= 1;
-	}
 }
 
 // GRAPHICS ------------------------------------------------------------------
@@ -402,13 +372,12 @@ int main() {
 			button_unlock(); // keep on clearing button_accept
 
 		playfield_clear(); // set up new playfield
+		playfield[2] |= (1 << (3 + 1));   // col=2 → bit3
 		delay_cycle = 0; // start the timer
 		new_pattern = 1; // start with new pattern
-		play_tune(TUNE_START); // play a start signal
 
 		// loop of the game
 		while (1) {
-			// start one new piece at the top
 			if (new_pattern) {
 				new_pattern = 0;
 
@@ -417,61 +386,26 @@ int main() {
 				for (int i = 0; i < PATTERN_SIZE; ++i)
 					current_pattern[i] = PATTERNS[p][i];
 
-				// rotate it randomly
-				int r = rnd_gen(4);
-				for (int j = 0; j < r; ++j) {
-					char tmp_pattern[PATTERN_SIZE];
-					rotate_pattern(current_pattern, tmp_pattern);
-					for (int k = 0; k < PATTERN_SIZE; ++k)
-						current_pattern[k] = tmp_pattern[k];
-				}
-
 				// place it randomly at the top of the playfield
-				current_row = 0;
+				current_row = 15;
 				current_col = rnd_gen(PLAYFIELD_COLS - PATTERN_SIZE + 1);
 
 				// show the new piece on the screen
 				screen_update();
 			}
 
-			// game over, if the new piece does not fit in the top row
-			if ((current_row == 0) && collision(current_pattern, current_row, current_col))
-				break;
-
-			// if enough time passed, try to drop the current piece by one row
 			if (++delay_cycle > LEVELS[level_current].delay) {
 				delay_cycle = 0;
-				// will not succeed at the last line, or if playfield below has conflicting elements
-				if (collision(current_pattern, current_row + 1, current_col)) {
-					// merge the current piece to the playfield then, and start with a new piece
-					merge_current_pattern_to_playfield();
+				// if reach the last point, we are going to make a new pattern
+				if (current_row == 0) {
 					new_pattern = 1;
 					continue;
 				}
 				// otherwise, drop the piece by one row
-				++current_row;
+				--current_row;
 			}
 
-			// if trying to move left or right, do so only if the piece does not leave or collide with the playfield
-			int button = button_pressed();
-			int horizontal = 0;
-			if (button == BUTTON_LEFT)
-				horizontal = +1;
-			if (button == BUTTON_RIGHT)
-				horizontal = -1;
-			if ((horizontal != 0) && !collision(current_pattern, current_row, current_col + horizontal))
-				current_col += horizontal;
-
-			// if trying to rotate right, do only so if the piece does not collide with the playfield
-			if (button == BUTTON_UP) {
-				char tmp_pattern[PATTERN_SIZE];
-				// rotate the current piece into a temp
-				rotate_pattern(current_pattern, tmp_pattern);
-				// check for collision, and make the rotation permanent if there is none
-				if (!collision(tmp_pattern, current_row, current_col))
-					for (int i = 0; i < PATTERN_SIZE; ++i)
-						current_pattern[i] = tmp_pattern[i];
-			}
+			//TODO game logic
 
 			// once all movements are done, update the screen
 			screen_update();
