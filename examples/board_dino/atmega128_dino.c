@@ -68,22 +68,29 @@ static void play_tune(tune_t *tune) {
 
 #define BUTTON_NONE		0
 #define BUTTON_CENTER	1
-#define BUTTON_LEFT		2
-#define BUTTON_RIGHT	3
-#define BUTTON_UP		4
+#define BUTTON_LEFT		4
+#define BUTTON_RIGHT	5
+#define BUTTON_UP		2
+#define BUTTON_DOWN		3
 static int button_accept = 1;
 
 static int button_pressed() {
 	// right
-	if (!(PINA & 0b00000001) & button_accept) { // check state of button 1 and value of button_accept
+	if (!(PINA & 0b00001000) & button_accept) { // check state of button 1 and value of button_accept
 		button_accept = 0; // button is pressed
 		return BUTTON_RIGHT;
 	}
 
 	// up
-	if (!(PINA & 0b00000010) & button_accept) { // check state of button 2 and value of button_accept
+	if (!(PINA & 0b00010000) & button_accept) { // check state of button 2 and value of button_accept
 		button_accept = 0; // button is pressed
 		return BUTTON_UP;
+	}
+
+	// down
+	if (!(PINA & 0b00000001) & button_accept) { // check state of button 2 and value of button_accept
+		button_accept = 0; // button is pressed
+		return BUTTON_DOWN;
 	}
 
 	// center
@@ -93,7 +100,7 @@ static int button_pressed() {
 	}
 
 	// left
-	if (!(PINA & 0b00010000) & button_accept) { // check state of button 5 and value of button_accept
+	if (!(PINA & 0b00000010) & button_accept) { // check state of button 5 and value of button_accept
 		button_accept = 0; // button is pressed
 		return BUTTON_LEFT;
 	}
@@ -257,6 +264,9 @@ static unsigned char current_pattern[PATTERN_SIZE];
 static int current_row;
 static int current_col;
 
+static int dino_row = 2;
+static int dino_col = 3;
+
 // Actually, 1 row taller and 2 columns wider, which extras are filled with ones to help collision detection
 #define PLAYFIELD_ROWS	16
 #define PLAYFIELD_COLS	4
@@ -335,6 +345,11 @@ static void screen_update() {
 
 	for (int r1 = 0; r1 < PLAYFIELD_ROWS; ++r1) {
 		unsigned char row = XLAT_PLAYGROUND[(playfield[r1] >> 1) & 0b11];
+
+    	if (r1 == dino_row) {
+        	row |= XLAT_PATTERN[(1 << dino_col) & 0b11];
+    	}
+
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
 			if (r1 == current_row + pr)
 				row |= XLAT_PATTERN[(current_pattern[pr] << current_col) & 0b11];
@@ -345,6 +360,11 @@ static void screen_update() {
 
 	for (int r2 = 0; r2 < PLAYFIELD_ROWS; ++r2) {
 		char row = XLAT_PLAYGROUND[(playfield[r2] >> 3) & 0b11];
+
+		if (r2 == dino_row) {
+        	row |= XLAT_PATTERN[((1 << dino_col) >> 2) & 0b11];
+    	}
+
 		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
 			if (r2 == current_row + pr)
 				row |= XLAT_PATTERN[((current_pattern[pr] << current_col) >> 2) & 0b11];
@@ -372,7 +392,6 @@ int main() {
 			button_unlock(); // keep on clearing button_accept
 
 		playfield_clear(); // set up new playfield
-		playfield[2] |= (1 << (3 + 1));   // col=2 → bit3
 		delay_cycle = 0; // start the timer
 		new_pattern = 1; // start with new pattern
 
@@ -406,6 +425,16 @@ int main() {
 			}
 
 			//TODO game logic
+			int button = button_pressed();
+			int horizontal = 0;
+			if(button == BUTTON_UP) {
+				if (dino_col < PLAYFIELD_COLS-1)
+       				dino_col++;
+			}
+			if(button == BUTTON_DOWN) {
+				if (dino_col > 0)
+       				dino_col--;
+			}
 
 			// once all movements are done, update the screen
 			screen_update();
