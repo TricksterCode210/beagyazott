@@ -266,6 +266,8 @@ static int current_col;
 
 static int dino_row = 2;
 static int dino_col = 3;
+static int dino_jump = 0;
+static int air_time = 10;
 
 // Actually, 1 row taller and 2 columns wider, which extras are filled with ones to help collision detection
 #define PLAYFIELD_ROWS	16
@@ -441,13 +443,30 @@ int main() {
 			//TODO game logic
 			int button = button_pressed();
 			int horizontal = 0;
-			if(button == BUTTON_UP) {
-				if (dino_col < PLAYFIELD_COLS-1)
-       				dino_col++;
+			if(button == BUTTON_DOWN && dino_jump == 0) {
+       			dino_jump = 1;
 			}
-			if(button == BUTTON_DOWN) {
-				if (dino_col > 0)
-       				dino_col--;
+			if(button == BUTTON_UP) {
+				dino_col = 3;
+				dino_jump = 0;
+				air_time = 10;
+			}
+
+			if(dino_jump == 1) {            // if jump
+    			if(dino_col > 0)
+        			dino_col--;             // 1 block up
+				else if(dino_col == 0 && air_time > 0) {
+					air_time--;				// stays in the air for a short period
+				}
+    			else
+        			dino_jump = -1;         // reached top and air time ran out
+			}
+			else if(dino_jump == -1) {      // falling
+    			if(dino_col < 3)
+        			dino_col++;             // 1 block down
+    		else
+        		dino_jump = 0;          // reached the floor, reset values
+				air_time = 10;
 			}
 
 			// once all movements are done, update the screen
