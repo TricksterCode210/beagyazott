@@ -257,8 +257,8 @@ static void row_removed() {
  * Horizontal axis: 0 is right column, increments leftwards */
 
 #define PATTERN_NUM		2
-#define PATTERN_SIZE	2
-static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01, 0b00 }, { 0b01, 0b01 }};
+#define PATTERN_SIZE	1
+static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01 }, { 0b11 }};
 
 static unsigned char current_pattern[PATTERN_SIZE];
 static int current_col_position;
@@ -434,13 +434,18 @@ int main() {
 				new_pattern = 0;
 
 				// select a new random pattern
-				int p = rnd_gen(PATTERN_NUM);
+				int p = rnd_gen(100);
+				p = p > 75 ? 0 : 1;
 				for (int i = 0; i < PATTERN_SIZE; ++i)
 					current_pattern[i] = PATTERNS[p][i];
 
-				// place it randomly at the top of the playfield
+				// place the character on fixed place
 				current_col_position = 15;
-				current_row_position = rnd_gen(PLAYFIELD_COLS);
+				if (p == 0) {
+					current_row_position = 0;
+				} else {
+					current_row_position = 2;
+				}
 
 				// show the new piece on the screen
 				screen_update();
