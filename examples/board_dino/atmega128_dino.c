@@ -256,18 +256,54 @@ static void row_removed() {
 /* Vertical axis: 0 is top row, increments downwards
  * Horizontal axis: 0 is right column, increments leftwards */
 
-#define PATTERN_NUM		2
-#define PATTERN_SIZE	1
-static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = { { 0b01 }, { 0b11 }};
+#define PATTERN_NUM 2
+#define PATTERN_SIZE 1
+static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = {
+    { 1 },   // cactus
+    { 2 }   // bird
+};
 
 static unsigned char current_pattern[PATTERN_SIZE];
 static int current_col_position;
 static int current_row_position;
 
 static int dino_col_position = 2;
-static int dino_row_position = 3;
+static int dino_row_position = 1;
 static int dino_jump = 0;
 static int air_time = 10;
+
+static unsigned char CACTUS[8] = {
+    0b00100,
+    0b01110,
+    0b00100,
+    0b00101,
+    0b11111,
+    0b10100,
+    0b00100,
+    0b00100
+};
+
+static unsigned char BIRD[8] ={
+    0b00000,
+    0b01110,
+    0b10101,
+    0b10001,
+    0b10001,
+    0b00000,
+    0b00000,
+    0b00000
+};
+
+static unsigned char DINO[8] = {
+    0b00100,
+    0b01110,
+    0b01111,
+    0b00110,
+    0b01111,
+    0b11100,
+    0b00100,
+    0b00000
+};
 
 // Actually, 1 row taller and 2 columns wider, which extras are filled with ones to help collision detection
 #define PLAYFIELD_ROWS	16
@@ -280,21 +316,9 @@ static void playfield_clear() {
 	playfield[PLAYFIELD_ROWS] = 0b111111;
 }
 
-int dino_row_positionlision() {
-    int dino_bit = 1 << (dino_row_position + 1);
-
-    // check upper row
-    if (dino_col_position == current_col_position) {
-        int obstacle = current_pattern[0] << (current_row_position + 1);
-        if (dino_bit & obstacle) return 1;
-    }
-
-    // check lower row
-    if (dino_col_position == current_col_position + 1) {
-        int obstacle = current_pattern[1] << (current_row_position + 1);
-        if (dino_bit & obstacle) return 1;
-    }
-
+int dino_collision() {
+	if (dino_col_position == current_col_position && dino_row_position == current_row_position)
+        return 1;
     return 0;
 }
 
@@ -345,43 +369,52 @@ static const char XLAT_CHAR[] = {
 };
 
 static void chars_init() {
-	for (int c = 0; c < CHARMAP_SIZE; ++c) {
-		lcd_send_command(CG_RAM_ADDR + c*8);
-		for (int r = 0; r < 8; ++r)
-			lcd_send_data(CHARMAP[c][r]);
-	}
+
+    lcd_send_command(CG_RAM_ADDR + 0*8);
+    for (int i = 0; i < 8; i++)
+        lcd_send_data(DINO[i]);
+
+    lcd_send_command(CG_RAM_ADDR + 1*8);
+    for (int i = 0; i < 8; i++)
+        lcd_send_data(CACTUS[i]);
+
+    lcd_send_command(CG_RAM_ADDR + 2*8);
+    for (int i = 0; i < 8; i++)
+        lcd_send_data(BIRD[i]);
+
+    lcd_send_command(DD_RAM_ADDR);
 }
 
 static void screen_update() {
-	lcd_send_command(DD_RAM_ADDR);		//set to Line 1
+	lcd_send_command(DD_RAM_ADDR); // first line
 
-	for (int r1 = 0; r1 < PLAYFIELD_ROWS; ++r1) {
-		unsigned char row = XLAT_PLAYGROUND[(playfield[r1] >> 1) & 0b11];
+    for (int col = 0; col < PLAYFIELD_ROWS; col++) {
 
-    	if (r1 == dino_col_position) {
-        	row |= XLAT_PATTERN[(1 << dino_row_position) & 0b11];
-    	}
+        if (col == dino_col_position && dino_row_position == 0) {
+            lcd_send_data(0);       // dino (CGRAM slot 0)
+        }
+        else if (col == current_col_position && current_row_position == 0) {
+            lcd_send_data(current_pattern[0]); // cactus/bird
+        }
+        else {
+            lcd_send_data(' ');
+        }
+    }
 
-		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
-			if (r1 == current_col_position + pr)
-				row |= XLAT_PATTERN[(current_pattern[pr] << current_row_position) & 0b11];
-		lcd_send_data(XLAT_CHAR[row]);
-	}
+    lcd_send_command(DD_RAM_ADDR2); // second line
 
-	lcd_send_command(DD_RAM_ADDR2);		//set to Line 2
+    for (int col = 0; col < PLAYFIELD_ROWS; col++) {
 
-	for (int r2 = 0; r2 < PLAYFIELD_ROWS; ++r2) {
-		char row = XLAT_PLAYGROUND[(playfield[r2] >> 3) & 0b11];
-
-		if (r2 == dino_col_position) {
-        	row |= XLAT_PATTERN[((1 << dino_row_position) >> 2) & 0b11];
-    	}
-
-		for (int pr = 0; pr < PATTERN_SIZE; ++pr)
-			if (r2 == current_col_position + pr)
-				row |= XLAT_PATTERN[((current_pattern[pr] << current_row_position) >> 2) & 0b11];
-		lcd_send_data(XLAT_CHAR[row]);
-	}
+        if (col == dino_col_position && dino_row_position == 1) {
+            lcd_send_data(0);       // dino (CGRAM slot 0)
+        }
+        else if (col == current_col_position && current_row_position == 1) {
+            lcd_send_data(current_pattern[0]);
+        }
+        else {
+            lcd_send_data(' ');
+        }
+    }
 }
 
 // THE GAME ==================================================================
@@ -435,16 +468,16 @@ int main() {
 
 				// select a new random pattern
 				int p = rnd_gen(100);
-				p = p > 75 ? 0 : 1;
+				p = p > 50 ? 1 : 0;
 				for (int i = 0; i < PATTERN_SIZE; ++i)
 					current_pattern[i] = PATTERNS[p][i];
 
 				// place the character on fixed place
 				current_col_position = 15;
-				if (p == 0) {
+				if (p == 1) {
 					current_row_position = 0;
 				} else {
-					current_row_position = 2;
+					current_row_position = 1;
 				}
 
 				// show the new piece on the screen
@@ -452,7 +485,7 @@ int main() {
 			}
 
 			// game over, if the blockade collide with the dino
-			if (dino_row_positionlision())
+			if (dino_collision())
 				break;
 
 			if (++delay_cycle > LEVELS[level_current].delay) {
@@ -468,7 +501,6 @@ int main() {
 
 			//TODO game logic
 			int button = button_pressed();
-			int horizontal = 0;
 			if(button == BUTTON_UP && dino_jump == 0) {
        			dino_jump = 1;
 			}
@@ -486,7 +518,7 @@ int main() {
         			dino_jump = -1;         // reached top and air time ran out
 			}
 			else if(dino_jump == -1) {      // falling
-    			if(dino_row_position < 3)
+    			if(dino_row_position < 1)
         			dino_row_position++;             // 1 block down
     		else
         		dino_jump = 0;          // reached the floor, reset values
