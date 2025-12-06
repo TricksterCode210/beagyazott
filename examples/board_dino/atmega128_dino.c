@@ -516,18 +516,12 @@ int main() {
 			if (++delay_cycle > LEVELS[level_current].delay) {
 				delay_cycle = 0;
 
-				// mozgatjuk az összes aktív akadályt balra
 				for (int i = 0; i < OBSTACLE_MAX; ++i) {
 					if (!obstacle_active[i]) continue;
 
-					// ha elérte a bal szélét
 					if (obstacle_col[i] == 0) {
-						// inaktiváljuk
 						obstacle_active[i] = 0;
-						// row removed logic (pontozás / sebesség növelés)
 						row_removed();
-						// ha van szabad hely, spawnoljunk (nem kötelező minden inaktiválásnál)
-						// spawnolást inkább a későbbi véletlenre bízzuk
 						continue;
 					}
 					// különben léptetjük balra
