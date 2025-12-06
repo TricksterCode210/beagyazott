@@ -318,7 +318,7 @@ static void playfield_clear() {
 int dino_col_position = 2;
 int dino_row_position = 1;
 int dino_jump = 0;
-int air_time = 10;
+int air_time = 0;
 
 static void obstacles_init() {
 	for (int i = 0; i < OBSTACLE_MAX; ++i) {
@@ -577,7 +577,7 @@ int main() {
         			dino_row_position++;             // 1 block down
     		else
         		dino_jump = 0;          // reached the floor, reset values
-				air_time = 10;
+				air_time = 10 + 5 * (2 - level_current);
 			}
 
 			// once all movements are done, update the screen
