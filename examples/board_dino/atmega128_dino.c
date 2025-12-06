@@ -263,14 +263,13 @@ static unsigned char PATTERNS[PATTERN_NUM][PATTERN_SIZE] = {
     { 2 }   // bird
 };
 
-static unsigned char current_pattern[PATTERN_SIZE];
-static int current_col_position;
-static int current_row_position;
+/* Obstacle system: multiple obstacles */
+#define OBSTACLE_MAX 4   // tetszés szerint növelhető (figyelj a kijelzőre!)
 
-static int dino_col_position = 2;
-static int dino_row_position = 1;
-static int dino_jump = 0;
-static int air_time = 10;
+static unsigned char obstacle_pattern[OBSTACLE_MAX]; // 1 vagy 2
+static int obstacle_col[OBSTACLE_MAX];
+static int obstacle_row[OBSTACLE_MAX];
+static unsigned char obstacle_active[OBSTACLE_MAX];
 
 static unsigned char CACTUS[8] = {
     0b00100,
@@ -316,10 +315,41 @@ static void playfield_clear() {
 	playfield[PLAYFIELD_ROWS] = 0b111111;
 }
 
+int dino_col_position = 2;
+int dino_row_position = 1;
+int dino_jump = 0;
+int air_time = 10;
+
+static void obstacles_init() {
+	for (int i = 0; i < OBSTACLE_MAX; ++i) {
+		obstacle_active[i] = 0;
+		obstacle_col[i] = 0;
+		obstacle_row[i] = 0;
+		obstacle_pattern[i] = 0;
+	}
+}
+
+// spawn első szabad helyre
+static void spawn_obstacle() {
+	for (int i = 0; i < OBSTACLE_MAX; ++i) {
+		if (!obstacle_active[i]) {
+			int p = rnd_gen(100) > 50 ? 1 : 0; // 0=cactus,1=bird
+			obstacle_pattern[i] = PATTERNS[p][0];
+			obstacle_col[i] = PLAYFIELD_ROWS - 1; // 15 (jobb oldalon)
+			obstacle_row[i] = (p == 1) ? 0 : 1; // bird -> top (0), cactus -> bottom (1)
+			obstacle_active[i] = 1;
+			break;
+		}
+	}
+}
+
 int dino_collision() {
-	if (dino_col_position == current_col_position && dino_row_position == current_row_position)
-        return 1;
-    return 0;
+	for (int i = 0; i < OBSTACLE_MAX; ++i) {
+		if (!obstacle_active[i]) continue;
+		if (dino_col_position == obstacle_col[i] && dino_row_position == obstacle_row[i])
+			return 1;
+	}
+	return 0;
 }
 
 // GRAPHICS ------------------------------------------------------------------
@@ -385,6 +415,15 @@ static void chars_init() {
     lcd_send_command(DD_RAM_ADDR);
 }
 
+static int is_obstacle_here(int col, int row) {
+	for (int i = 0; i < OBSTACLE_MAX; ++i) {
+		if (!obstacle_active[i]) continue;
+		if (obstacle_col[i] == col && obstacle_row[i] == row)
+			return obstacle_pattern[i]; // 1 vagy 2
+	}
+	return 0; // nincs akadály
+}
+
 static void screen_update() {
 	lcd_send_command(DD_RAM_ADDR); // first line
 
@@ -393,11 +432,13 @@ static void screen_update() {
         if (col == dino_col_position && dino_row_position == 0) {
             lcd_send_data(0);       // dino (CGRAM slot 0)
         }
-        else if (col == current_col_position && current_row_position == 0) {
-            lcd_send_data(current_pattern[0]); // cactus/bird
-        }
         else {
-            lcd_send_data(' ');
+            int p = is_obstacle_here(col, 0);
+            if (p) {
+                lcd_send_data(p); // p == 1 vagy 2 -> CGRAM slot 1/2
+            } else {
+                lcd_send_data(' ');
+            }
         }
     }
 
@@ -408,11 +449,13 @@ static void screen_update() {
         if (col == dino_col_position && dino_row_position == 1) {
             lcd_send_data(0);       // dino (CGRAM slot 0)
         }
-        else if (col == current_col_position && current_row_position == 1) {
-            lcd_send_data(current_pattern[0]);
-        }
         else {
-            lcd_send_data(' ');
+            int p = is_obstacle_here(col, 1);
+            if (p) {
+                lcd_send_data(p);
+            } else {
+                lcd_send_data(' ');
+            }
         }
     }
 }
@@ -436,12 +479,10 @@ int main() {
 		while (button_pressed() != BUTTON_CENTER) // wait till start signal
 			button_unlock(); // keep on clearing button_accept
 
-
-
 		lcd_send_line1("  Difficulity");
 		lcd_send_line2("E-4   N-5   H-6");
 		while (1) { // végtelen ciklus, amiből kilépünk gombnyomásra
-    	int btn = button_pressed();
+	    	int btn = button_pressed();
     		if(btn == BUTTON_LEFT) {
         		level_current = 0;
         		break; // kilép a kiválasztásból
@@ -459,47 +500,61 @@ int main() {
 
 		playfield_clear(); // set up new playfield
 		delay_cycle = 0; // start the timer
-		new_pattern = 1; // start with new pattern
+		obstacles_init();
+		// kezdő spawn
+		spawn_obstacle();
+
+		int spawn_cooldown = 0; // időzítő a spawnok között (megelőzi a túlzsúfoltságot)
 
 		// loop of the game
 		while (1) {
-			if (new_pattern) {
-				new_pattern = 0;
 
-				// select a new random pattern
-				int p = rnd_gen(100);
-				p = p > 50 ? 1 : 0;
-				for (int i = 0; i < PATTERN_SIZE; ++i)
-					current_pattern[i] = PATTERNS[p][i];
-
-				// place the character on fixed place
-				current_col_position = 15;
-				if (p == 1) {
-					current_row_position = 0;
-				} else {
-					current_row_position = 1;
-				}
-
-				// show the new piece on the screen
-				screen_update();
-			}
-
-			// game over, if the blockade collide with the dino
+			// game over, if any obstacle collide with the dino
 			if (dino_collision())
 				break;
 
 			if (++delay_cycle > LEVELS[level_current].delay) {
 				delay_cycle = 0;
-				// if reach the last point, we are going to make a new pattern
-				if (current_col_position == 0) {
-					new_pattern = 1;
-					continue;
+
+				// mozgatjuk az összes aktív akadályt balra
+				for (int i = 0; i < OBSTACLE_MAX; ++i) {
+					if (!obstacle_active[i]) continue;
+
+					// ha elérte a bal szélét
+					if (obstacle_col[i] == 0) {
+						// inaktiváljuk
+						obstacle_active[i] = 0;
+						// row removed logic (pontozás / sebesség növelés)
+						row_removed();
+						// ha van szabad hely, spawnoljunk (nem kötelező minden inaktiválásnál)
+						// spawnolást inkább a későbbi véletlenre bízzuk
+						continue;
+					}
+					// különben léptetjük balra
+					--obstacle_col[i];
 				}
-				// otherwise, drop the piece by one row
-				--current_col_position;
+
+				// spawn logic
+				if (spawn_cooldown > 0) spawn_cooldown--;
+				else {
+					int chance = 25;
+					int delay = 10;
+					if (level_current == 1) {
+						chance = 50;
+						delay = 7;
+					}
+					else if (level_current == 2) {
+						chance = 70;
+						delay = 5;
+					}
+					int r = rnd_gen(100);
+					if (r < chance) {
+						spawn_obstacle();
+						spawn_cooldown = 5 + rnd_gen(delay); // kis késleltetés a következő spawnig
+					}
+				}
 			}
 
-			//TODO game logic
 			int button = button_pressed();
 			if(button == BUTTON_UP && dino_jump == 0) {
        			dino_jump = 1;
