@@ -485,7 +485,7 @@ int main() {
 	    	int btn = button_pressed();
     		if(btn == BUTTON_LEFT) {
         		level_current = 0;
-        		break; // kilép a kiválasztásból
+        		break;
     		}
     		if(btn == BUTTON_CENTER) {
         		level_current = 1;
